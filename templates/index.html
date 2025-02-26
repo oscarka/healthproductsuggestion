@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文件上传</title>
+    <style>
+        .progress-bar {
+            width: 100%;
+            background-color: #f3f3f3;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+
+        .progress-bar div {
+            height: 20px;
+            width: 0%;
+            background-color: green;
+            text-align: center;
+            color: white;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>上传图片</h1>
+    <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data">
+        <input type="file" name="image" required>
+        <button type="submit">上传</button>
+    </form>
+
+    <div id="progress-container" class="progress-bar" style="display: none;">
+        <div id="progress" style="width: 0%;">0%</div>
+    </div>
+
+    <h2>上传结果</h2>
+    <div id="result" style="display: none;">
+        <p><strong>Token:</strong> <span id="token"></span></p>
+        <p><strong>Output:</strong> <span id="output"></span></p>
+    </div>
+
+    <script>
+        document.getElementById('upload-form').onsubmit = function (event) {
+            event.preventDefault(); // 防止表单默认提交
+
+            const formData = new FormData(this);
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress');
+            const resultDiv = document.getElementById('result');
+
+            // 显示进度条
+            progressContainer.style.display = 'block';
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => {
+                    console.log('收到服务器响应');
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('解析响应为JSON');
+                    progressContainer.style.display = 'none';
+
+                    if (data.error) {
+                        alert('上传失败: ' + data.error);
+                    } else {
+                        console.log('收到的完整数据:', data);
+                        console.log('data.output的值:', data.output);
+                        console.log('data.output的类型:', typeof data.output);
+
+                        // 显示结果
+                        document.getElementById('token').textContent = data.token || 'N/A';
+                        const outputStr = typeof data.output === 'object'
+                            ? JSON.stringify(data.output, null, 2)  // 格式化JSON字符串，使用2空格缩进
+                            : data.output || 'No output';
+                        console.log('格式化后的outputStr:', outputStr);
+                        document.getElementById('output').textContent = outputStr;
+                        resultDiv.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    console.error('上传失败:', error);
+                    progressContainer.style.display = 'none';
+                    alert('上传失败，请重试');
+                });
+
+            // 模拟进度条更新
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                if (progress < 100) {
+                    progress += 33;
+                    progressBar.style.width = progress + '%';
+                    progressBar.textContent = progress + '%';
+                } else {
+                    clearInterval(progressInterval);
+                }
+            }, 500);
+        };
+    </script>
+</body>
+
+</html>

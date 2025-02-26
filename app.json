@@ -1,0 +1,7 @@
+{
+    "pages": [
+        "pages/home/home",
+        "pages/image-analysis/index",
+        // ... 其他页面
+    ],
+}

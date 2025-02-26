@@ -1,0 +1,25 @@
+<view class="container">
+  <block wx:if="{{!showResult}}">
+    <view class="upload-area">
+      <view class="title">图片分析</view>
+      <view class="desc">上传图片获取分析结果</view>
+      <t-upload
+        mediaType="{{['image']}}"
+        max="{{1}}"
+        files="{{fileList}}"
+        bind:success="handleSuccess"
+      />
+    </view>
+  </block>
+  
+  <block wx:else>
+    <t-result
+      title="分析结果"
+      description="{{result.output}}"
+    >
+      <view slot="action">
+        <t-button theme="primary" bind:tap="handleBack">返回重新上传</t-button>
+      </view>
+    </t-result>
+  </block>
+</view> 
