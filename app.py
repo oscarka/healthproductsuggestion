@@ -39,8 +39,8 @@ def upload_image_to_imgur(image_path):
         raise Exception(f"Failed to upload image: {response.json()}")
 
 # 调用 Coze API 并获取结果
-def process_with_coze(image_url):
-    logger.debug(f"开始调用 Coze API，图片 URL: {image_url}")
+def process_with_coze(image_url, content=''):
+    logger.debug(f"开始调用 Coze API，图片 URL: {image_url}, content: {content}")
     coze_url = 'https://api.coze.com/v1/workflow/run'
     headers = {
         'Authorization': 'Bearer pat_lmm0o38mIw0OWee8wNOBjBSCWLDRviltMJOFishIqIuRkV5hB8xuzkxSLwrl65wb',
@@ -48,7 +48,8 @@ def process_with_coze(image_url):
     }
     data = {
         "parameters": {
-            "input":image_url
+            "input": image_url,
+            "content": content
         },
         "workflow_id": "7473817378133999623"
     }
@@ -110,50 +111,46 @@ def index():
 @app.route('/upload', methods=['POST'])
 def upload():
     logger.debug("接收到上传请求")
-    file = request.files['image']
-    if file:
-        image_filename = secure_filename(file.filename)
-        image_path = os.path.join('uploads', image_filename)
-
-        # 确保上传文件目录存在
-        os.makedirs('uploads', exist_ok=True)
-
-        try:
+    file = request.files.get('image')
+    content = request.form.get('content', '').strip()
+    
+    if not file and not content:
+        logger.error("未收到图片或文字内容")
+        return jsonify({'error': '请上传图片或输入文字信息'})
+    
+    try:
+        image_url = None
+        if file:
+            image_filename = secure_filename(file.filename)
+            image_path = os.path.join('uploads', image_filename)
+            os.makedirs('uploads', exist_ok=True)
             file.save(image_path)
-            logger.debug(f"图片已保存到 {image_path}")
-
-            # 更新进度
-            session['progress'] = 33  # 上传完成，进度条到达 1/3
-
-            # 上传到 Imgur 获取图片 URL
             image_url = upload_image_to_imgur(image_path)
-            session['progress'] = 66  # Coze 请求发起，进度条到达 2/3
-
-            # 调用 Coze API 获取核保结果
-            result = process_with_coze(image_url)
-            session['progress'] = 100  # 完成，进度条到达 100%
+        else:
+            # 使用默认空白图片
+            default_image_path = 'uploads/blank.jpg'
+            image_url = upload_image_to_imgur(default_image_path)
             
-            logger.debug(f"准备返回给前端的完整结果: {result}")
-            logger.debug(f"result类型: {type(result)}")
-            logger.debug(f"result['output']类型: {type(result['output'])}")
-            logger.debug(f"result['output']内容: {result['output']}")
+        # 调用 Coze API
+        result = process_with_coze(image_url, content)
+        
+        logger.debug(f"准备返回给前端的完整结果: {result}")
+        logger.debug(f"result类型: {type(result)}")
+        logger.debug(f"result['output']类型: {type(result['output'])}")
+        logger.debug(f"result['output']内容: {result['output']}")
 
-            # 构造返回数据
-            response_data = {
-                'token': result.get('token', 'N/A'),
-                'output': result.get('output', 'No result available')
-            }
-            logger.debug(f"最终构造的response_data: {response_data}")
+        # 构造返回数据
+        response_data = {
+            'token': result.get('token', 'N/A'),
+            'output': result.get('output', 'No result available')
+        }
+        logger.debug(f"最终构造的response_data: {response_data}")
 
-            return jsonify(response_data)
-        except Exception as e:
-            session['progress'] = 0
-            logger.error(f"上传和处理过程中出错: {e}")
-            logger.exception("详细错误信息:")  # 这会打印完整的错误堆栈
-            return jsonify({'error': str(e)})
-
-    logger.error("未收到文件")
-    return jsonify({'error': 'No image file uploaded.'})
+        return jsonify(response_data)
+    except Exception as e:
+        logger.error(f"上传和处理过程中出错: {e}")
+        logger.exception("详细错误信息:")  # 这会打印完整的错误堆栈
+        return jsonify({'error': str(e)})
 
 # 新增API接口路由
 @app.route('/api/upload', methods=['POST'])
@@ -162,8 +159,11 @@ def api_upload():
     logger.debug(f"请求方法: {request.method}")
     logger.debug(f"请求头: {request.headers}")
     logger.debug(f"请求文件: {request.files}")
+    logger.debug(f"请求表单: {request.form}")  # 添加表单数据日志
     
     file = request.files.get('image')
+    content = request.form.get('content', '')  # 获取content字段
+    
     if not file:
         logger.error("未收到图片文件")
         return jsonify({
@@ -188,7 +188,7 @@ def api_upload():
         
         # 调用Coze API获取结果
         logger.debug("开始调用Coze API")
-        result = process_with_coze(image_url)
+        result = process_with_coze(image_url, content)
         logger.debug(f"Coze API调用成功，结果: {result}")
         
         # 返回统一格式的API响应
