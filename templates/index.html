@@ -27,8 +27,15 @@
 <body>
     <h1>上传图片</h1>
     <form id="upload-form" action="/upload" method="post" enctype="multipart/form-data">
-        <input type="file" name="image" required>
-        <button type="submit">上传</button>
+        <div>
+            <input type="file" name="image">
+        </div>
+        <div style="margin-top: 20px;">
+            <textarea name="content" placeholder="请输入补充信息..." rows="4" style="width: 100%;"></textarea>
+        </div>
+        <div style="margin-top: 20px;">
+            <button type="submit">上传</button>
+        </div>
     </form>
 
     <div id="progress-container" class="progress-bar" style="display: none;">
@@ -43,7 +50,15 @@
 
     <script>
         document.getElementById('upload-form').onsubmit = function (event) {
-            event.preventDefault(); // 防止表单默认提交
+            event.preventDefault();
+
+            // 检查是否至少有一个输入
+            const file = this.elements['image'].files[0];
+            const content = this.elements['content'].value.trim();
+            if (!file && !content) {
+                alert('请上传图片或输入文字信息');
+                return false;
+            }
 
             const formData = new FormData(this);
             const progressContainer = document.getElementById('progress-container');
