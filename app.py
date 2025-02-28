@@ -127,17 +127,30 @@ def upload():
         return jsonify({'error': '请上传图片或输入文字信息'})
     
     try:
-        image_url = None
-        # 只在有文件时处理图片上传
-        if file:
+        # 情况1: 只有文字
+        if content and not file:
+            logger.debug("只接收到文字内容")
+            result = process_with_coze(content=content)
+            
+        # 情况2: 只有图片
+        elif file and not content:
+            logger.debug("只接收到图片")
             image_filename = secure_filename(file.filename)
             image_path = os.path.join('uploads', image_filename)
             os.makedirs('uploads', exist_ok=True)
             file.save(image_path)
             image_url = upload_image_to_imgur(image_path)
+            result = process_with_coze(image_url=image_url)
             
-        # 调用 Coze API
-        result = process_with_coze(image_url, content)
+        # 情况3: 都有
+        else:
+            logger.debug("同时接收到图片和文字")
+            image_filename = secure_filename(file.filename)
+            image_path = os.path.join('uploads', image_filename)
+            os.makedirs('uploads', exist_ok=True)
+            file.save(image_path)
+            image_url = upload_image_to_imgur(image_path)
+            result = process_with_coze(image_url=image_url, content=content)
         
         logger.debug(f"准备返回给前端的完整结果: {result}")
         logger.debug(f"result类型: {type(result)}")
