@@ -177,39 +177,51 @@ def api_upload():
     logger.debug(f"请求方法: {request.method}")
     logger.debug(f"请求头: {request.headers}")
     logger.debug(f"请求文件: {request.files}")
-    logger.debug(f"请求表单: {request.form}")  # 添加表单数据日志
+    logger.debug(f"请求表单: {request.form}")
     
     file = request.files.get('image')
     content = request.form.get('content', '')  # 获取content字段
     
-    if not file:
-        logger.error("未收到图片文件")
+    if not file and not content:
+        logger.error("未收到图片或文字内容")
         return jsonify({
             'code': 400,
-            'message': 'No image file uploaded',
+            'message': '请上传图片或输入文字信息',
             'data': None
         })
 
     try:
-        # 保存文件
-        image_filename = secure_filename(file.filename)
-        image_path = os.path.join('uploads', image_filename)
-        os.makedirs('uploads', exist_ok=True)
-        logger.debug(f"准备保存文件到: {image_path}")
-        file.save(image_path)
-        logger.debug("文件保存成功")
+        # 情况1: 只有文字
+        if content and not file:
+            logger.debug("只接收到文字内容")
+            result = process_with_coze(content=content)
+            
+        # 情况2: 只有图片
+        elif file and not content:
+            logger.debug("只接收到图片")
+            image_filename = secure_filename(file.filename)
+            image_path = os.path.join('uploads', image_filename)
+            os.makedirs('uploads', exist_ok=True)
+            file.save(image_path)
+            image_url = upload_image_to_imgur(image_path)
+            result = process_with_coze(image_url=image_url)
+            
+        # 情况3: 都有
+        else:
+            logger.debug("同时接收到图片和文字")
+            image_filename = secure_filename(file.filename)
+            image_path = os.path.join('uploads', image_filename)
+            os.makedirs('uploads', exist_ok=True)
+            file.save(image_path)
+            image_url = upload_image_to_imgur(image_path)
+            result = process_with_coze(image_url=image_url, content=content)
         
-        # 上传到Imgur获取URL
-        logger.debug("开始上传到Imgur")
-        image_url = upload_image_to_imgur(image_path)
-        logger.debug(f"Imgur上传成功，URL: {image_url}")
-        
-        # 调用Coze API获取结果
-        logger.debug("开始调用Coze API")
-        result = process_with_coze(image_url, content)
-        logger.debug(f"Coze API调用成功，结果: {result}")
-        
-        # 返回统一格式的API响应
+        logger.debug(f"准备返回给前端的完整结果: {result}")
+        logger.debug(f"result类型: {type(result)}")
+        logger.debug(f"result['output']类型: {type(result['output'])}")
+        logger.debug(f"result['output']内容: {result['output']}")
+
+        # 构造返回数据
         response_data = {
             'code': 200,
             'message': 'success',
