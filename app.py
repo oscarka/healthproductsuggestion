@@ -39,20 +39,28 @@ def upload_image_to_imgur(image_path):
         raise Exception(f"Failed to upload image: {response.json()}")
 
 # 调用 Coze API 并获取结果
-def process_with_coze(image_url, content=''):
+def process_with_coze(image_url=None, content=None):
     logger.debug(f"开始调用 Coze API，图片 URL: {image_url}, content: {content}")
     coze_url = 'https://api.coze.com/v1/workflow/run'
     headers = {
         'Authorization': 'Bearer pat_lmm0o38mIw0OWee8wNOBjBSCWLDRviltMJOFishIqIuRkV5hB8xuzkxSLwrl65wb',
         'Content-Type': 'application/json'
     }
+    
+    # 根据实际传入的内容构建 parameters
+    parameters = {}
+    if image_url:
+        parameters["input"] = image_url
+    if content:
+        parameters["content"] = content
+        
     data = {
-        "parameters": {
-            "input": image_url,
-            "content": content
-        },
+        "parameters": parameters,
         "workflow_id": "7473817378133999623"
     }
+    
+    logger.debug(f"发送给 Coze 的数据: {data}")  # 添加日志
+    
     try:
         response = requests.post(coze_url, json=data, headers=headers)
         response.raise_for_status()
@@ -120,16 +128,13 @@ def upload():
     
     try:
         image_url = None
+        # 只在有文件时处理图片上传
         if file:
             image_filename = secure_filename(file.filename)
             image_path = os.path.join('uploads', image_filename)
             os.makedirs('uploads', exist_ok=True)
             file.save(image_path)
             image_url = upload_image_to_imgur(image_path)
-        else:
-            # 使用默认空白图片
-            default_image_path = 'uploads/blank.jpg'
-            image_url = upload_image_to_imgur(default_image_path)
             
         # 调用 Coze API
         result = process_with_coze(image_url, content)
