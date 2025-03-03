@@ -18,8 +18,8 @@ logging.basicConfig(level=logging.DEBUG)  # 设置日志级别为 DEBUG，这样
 logger = logging.getLogger(__name__)
 
 # Imgur API 客户端信息
-CLIENT_ID = 'fc527b50366e97e'
-CLIENT_SECRET = '24f0caceef6bac73c1bf2143847bc73eb99735ec'
+CLIENT_ID = os.environ.get('IMGUR_CLIENT_ID', 'fc527b50366e97e')
+CLIENT_SECRET = os.environ.get('IMGUR_CLIENT_SECRET', '24f0caceef6bac73c1bf2143847bc73eb99735ec')
 
 # 上传图片并获取 URL
 def upload_image_to_imgur(image_path):
@@ -43,7 +43,7 @@ def process_with_coze(image_url=None, content=None):
     logger.debug(f"开始调用 Coze API，图片 URL: {image_url}, content: {content}")
     coze_url = 'https://api.coze.com/v1/workflow/run'
     headers = {
-        'Authorization': 'Bearer pat_lmm0o38mIw0OWee8wNOBjBSCWLDRviltMJOFishIqIuRkV5hB8xuzkxSLwrl65wb',
+        'Authorization': f"Bearer {os.environ.get('COZE_API_TOKEN', 'pat_lmm0o38mIw0OWee8wNOBjBSCWLDRviltMJOFishIqIuRkV5hB8xuzkxSLwrl65wb')}",
         'Content-Type': 'application/json'
     }
     
@@ -56,7 +56,7 @@ def process_with_coze(image_url=None, content=None):
         
     data = {
         "parameters": parameters,
-        "workflow_id": "7473817378133999623"
+        "workflow_id": os.environ.get('COZE_WORKFLOW_ID', '7473817378133999623')
     }
     
     logger.debug(f"发送给 Coze 的数据: {data}")  # 添加日志
