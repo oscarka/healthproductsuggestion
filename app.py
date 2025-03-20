@@ -207,10 +207,12 @@ def api_upload():
     logger.debug(f"请求头: {request.headers}")
     logger.debug(f"请求文件: {request.files}")
     logger.debug(f"请求表单: {request.form}")
+    logger.debug(f"请求JSON: {request.get_json(silent=True)}")
     
     file = request.files.get('image')
     content = request.form.get('content', '')
-    openid = request.form.get('openid')  # 获取 openid，但不强制要求
+    openid = request.form.get('openid')
+    logger.debug(f"获取到的openid: {openid}")
     
     if not file and not content:
         logger.error("未收到图片或文字内容")
@@ -390,12 +392,15 @@ def login():
 
 def save_health_record(openid, content, result_data, query_type=1, error_message=None):
     try:
+        logger.debug(f"开始保存健康记录，openid: {openid}")
         db = get_db()
         with db.cursor() as cur:
             # 获取用户ID
             cur.execute("SELECT id FROM users WHERE openid = %s", (openid,))
             user = cur.fetchone()
+            logger.debug(f"查询到的用户ID: {user}")
             if not user:
+                logger.error(f"未找到用户: {openid}")
                 return
             
             user_id = user[0]
@@ -424,8 +429,21 @@ def save_health_record(openid, content, result_data, query_type=1, error_message
             )
             db.commit()
             
+            # 更新用户的最后访问时间
+            cur.execute(
+                """
+                UPDATE users 
+                SET last_visit_time = CURRENT_TIMESTAMP 
+                WHERE id = %s
+                """,
+                (user_id,)
+            )
+            db.commit()
+            logger.debug("记录保存成功")
+            
     except Exception as e:
         logger.error(f"Save health record error: {str(e)}")
+        logger.exception("详细错误信息:")
 
 if __name__ == "__main__":
     app.run(host=host, port=port)
