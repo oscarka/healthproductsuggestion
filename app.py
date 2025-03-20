@@ -414,6 +414,9 @@ def save_health_record(openid, content, result_data, query_type=1, error_message
                 service_elements = json.dumps(output.get('service_elements', []))
                 service_examination = json.dumps(output.get('service_examination', []))
             
+            # 在执行插入前打印参数
+            logger.debug(f"准备插入记录: user_id={user[0]}, content={content}, type={query_type}")
+            
             # 插入记录
             cur.execute(
                 """
