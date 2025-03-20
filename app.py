@@ -3,6 +3,7 @@ import requests
 import json
 import logging
 from flask import Flask, render_template, request, jsonify, session
+from flask import g
 from werkzeug.utils import secure_filename
 from time import sleep
 import psycopg2
