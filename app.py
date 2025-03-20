@@ -244,5 +244,62 @@ def api_upload():
         logger.debug(f"返回错误响应: {error_response}")
         return jsonify(error_response)
 
+# 在 app 初始化后添加数据库表初始化
+def init_db():
+    try:
+        with db.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    openid VARCHAR(100) UNIQUE NOT NULL,
+                    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    last_visit_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            db.commit()
+    except Exception as e:
+        logger.error(f"Init DB error: {str(e)}")
+
+# 在 app 初始化后调用
+init_db()
+
+# 添加登录接口
+@app.route('/api/login', methods=['POST'])
+def login():
+    code = request.json.get('code')
+    if not code:
+        return jsonify({'error': 'No code provided'}), 400
+        
+    try:
+        # 调用微信接口换取 openid
+        url = 'https://api.weixin.qq.com/sns/jscode2session'
+        params = {
+            'appid': os.environ.get('WX_APPID'),
+            'secret': os.environ.get('WX_SECRET'),
+            'js_code': code,
+            'grant_type': 'authorization_code'
+        }
+        resp = requests.get(url, params=params)
+        openid = resp.json().get('openid')
+        
+        # 检查或创建用户
+        with db.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO users (openid) 
+                VALUES (%s)
+                ON CONFLICT (openid) 
+                DO UPDATE SET last_visit_time = CURRENT_TIMESTAMP
+                RETURNING id
+                """, 
+                (openid,)
+            )
+            db.commit()
+            
+        return jsonify({'openid': openid})
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        return jsonify({'error': 'Login failed'}), 500
+
 if __name__ == "__main__":
     app.run(host=host, port=port)
