@@ -3,7 +3,6 @@ import requests
 import json
 import logging
 from flask import Flask, render_template, request, jsonify, session
-from flask import g
 from werkzeug.utils import secure_filename
 from time import sleep
 import psycopg2
@@ -277,8 +276,24 @@ def api_upload():
 # 修改 init_db 函数
 def init_db():
     try:
-        db = get_db()
-        with db.cursor() as cur:
+        # 从环境变量获取数据库URL
+        database_url = os.environ.get('DATABASE_URL')
+        if not database_url:
+            raise RuntimeError('DATABASE_URL not set')
+            
+        # 解析数据库URL
+        url = urlparse(database_url)
+        
+        # 直接建立连接，不使用 g 对象
+        conn = psycopg2.connect(
+            dbname=url.path[1:],
+            user=url.username,
+            password=url.password,
+            host=url.hostname,
+            port=url.port
+        )
+        
+        with conn.cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
@@ -287,7 +302,8 @@ def init_db():
                     last_visit_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            db.commit()
+            conn.commit()
+        conn.close()
     except Exception as e:
         logger.error(f"Init DB error: {str(e)}")
 
