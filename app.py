@@ -5,6 +5,9 @@ import logging
 from flask import Flask, render_template, request, jsonify, session
 from werkzeug.utils import secure_filename
 from time import sleep
+import psycopg2
+from psycopg2.extras import DictCursor
+from urllib.parse import urlparse
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -20,6 +23,32 @@ logger = logging.getLogger(__name__)
 # Imgur API 客户端信息
 CLIENT_ID = os.environ.get('IMGUR_CLIENT_ID', 'fc527b50366e97e')
 CLIENT_SECRET = os.environ.get('IMGUR_CLIENT_SECRET', '24f0caceef6bac73c1bf2143847bc73eb99735ec')
+
+# 在 app 初始化后，init_db 函数之前添加数据库连接
+def get_db():
+    if not hasattr(g, 'db'):
+        # 从环境变量获取数据库URL
+        database_url = os.environ.get('DATABASE_URL')
+        if not database_url:
+            raise RuntimeError('DATABASE_URL not set')
+            
+        # 解析数据库URL
+        url = urlparse(database_url)
+        
+        # 建立连接
+        g.db = psycopg2.connect(
+            dbname=url.path[1:],
+            user=url.username,
+            password=url.password,
+            host=url.hostname,
+            port=url.port
+        )
+    return g.db
+
+@app.teardown_appcontext
+def close_db(error):
+    if hasattr(g, 'db'):
+        g.db.close()
 
 # 上传图片并获取 URL
 def upload_image_to_imgur(image_path):
@@ -244,9 +273,10 @@ def api_upload():
         logger.debug(f"返回错误响应: {error_response}")
         return jsonify(error_response)
 
-# 在 app 初始化后添加数据库表初始化
+# 修改 init_db 函数
 def init_db():
     try:
+        db = get_db()
         with db.cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -263,7 +293,7 @@ def init_db():
 # 在 app 初始化后调用
 init_db()
 
-# 添加登录接口
+# 修改 login 函数中的数据库操作部分
 @app.route('/api/login', methods=['POST'])
 def login():
     code = request.json.get('code')
@@ -283,6 +313,7 @@ def login():
         openid = resp.json().get('openid')
         
         # 检查或创建用户
+        db = get_db()
         with db.cursor() as cur:
             cur.execute(
                 """
