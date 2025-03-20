@@ -209,7 +209,8 @@ def api_upload():
     logger.debug(f"请求表单: {request.form}")
     
     file = request.files.get('image')
-    content = request.form.get('content', '')  # 获取content字段
+    content = request.form.get('content', '')
+    openid = request.form.get('openid')  # 获取 openid，但不强制要求
     
     if not file and not content:
         logger.error("未收到图片或文字内容")
@@ -260,9 +261,30 @@ def api_upload():
             }
         }
         logger.debug(f"准备返回数据: {response_data}")
+
+        # 在返回结果前保存记录
+        if openid:
+            save_health_record(
+                openid=openid,
+                content=content,
+                result_data=result,
+                query_type=2 if file else 1
+            )
+        
         return jsonify(response_data)
 
     except Exception as e:
+        error_message = str(e)
+        # 如果有 openid，保存错误记录
+        if openid:
+            save_health_record(
+                openid=openid,
+                content=content,
+                result_data=None,
+                query_type=2 if file else 1,
+                error_message=error_message
+            )
+        
         logger.error(f"API处理过程中出错: {str(e)}")
         logger.exception("详细错误信息:")
         error_response = {
@@ -273,7 +295,7 @@ def api_upload():
         logger.debug(f"返回错误响应: {error_response}")
         return jsonify(error_response)
 
-# 修改 init_db 函数
+# 修改 init_db 函数，添加新表
 def init_db():
     try:
         # 从环境变量获取数据库URL
@@ -294,12 +316,29 @@ def init_db():
         )
         
         with conn.cursor() as cur:
+            # 现有的 users 表创建
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
                     openid VARCHAR(100) UNIQUE NOT NULL,
                     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     last_visit_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # 添加 health_records 表创建
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS health_records (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id),
+                    query_content TEXT,
+                    query_type SMALLINT,
+                    raw_result JSONB,
+                    service_elements JSONB,
+                    service_examination JSONB,
+                    status SMALLINT,
+                    error_message TEXT,
+                    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
             conn.commit()
@@ -348,6 +387,45 @@ def login():
     except Exception as e:
         logger.error(f"Login error: {str(e)}")
         return jsonify({'error': 'Login failed'}), 500
+
+def save_health_record(openid, content, result_data, query_type=1, error_message=None):
+    try:
+        db = get_db()
+        with db.cursor() as cur:
+            # 获取用户ID
+            cur.execute("SELECT id FROM users WHERE openid = %s", (openid,))
+            user = cur.fetchone()
+            if not user:
+                return
+            
+            user_id = user[0]
+            status = 0 if error_message else 1
+            
+            # 解析结果数据
+            service_elements = None
+            service_examination = None
+            if result_data and not error_message:
+                output = result_data.get('output', {})
+                service_elements = json.dumps(output.get('service_elements', []))
+                service_examination = json.dumps(output.get('service_examination', []))
+            
+            # 插入记录
+            cur.execute(
+                """
+                INSERT INTO health_records 
+                (user_id, query_content, query_type, raw_result, 
+                service_elements, service_examination, status, error_message)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (user_id, content, query_type, 
+                json.dumps(result_data) if result_data else None,
+                service_elements, service_examination, 
+                status, error_message)
+            )
+            db.commit()
+            
+    except Exception as e:
+        logger.error(f"Save health record error: {str(e)}")
 
 if __name__ == "__main__":
     app.run(host=host, port=port)
