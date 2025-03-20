@@ -211,7 +211,11 @@ def api_upload():
     
     file = request.files.get('image')
     content = request.form.get('content', '')
-    openid = request.form.get('openid')
+    
+    # 修改获取 openid 的方式
+    openid = request.form.get('openid')  # 先从 form 表单获取
+    if not openid and request.get_json():  # 如果表单中没有，尝试从 JSON 获取
+        openid = request.get_json().get('openid')
     logger.debug(f"获取到的openid: {openid}")
     
     if not file and not content:
