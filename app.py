@@ -347,6 +347,20 @@ def init_db():
                     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            
+            # 添加 feedback 表创建
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS feedback (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id),
+                    type VARCHAR(20) NOT NULL,
+                    content TEXT NOT NULL,
+                    status SMALLINT DEFAULT 0,
+                    reply TEXT,
+                    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    reply_time TIMESTAMP
+                )
+            """)
             conn.commit()
         conn.close()
     except Exception as e:
@@ -451,6 +465,102 @@ def save_health_record(openid, content, result_data, query_type=1, error_message
     except Exception as e:
         logger.error(f"Save health record error: {str(e)}")
         logger.exception("详细错误信息:")
+
+# 添加反馈接口
+@app.route('/api/feedback', methods=['POST'])
+def submit_feedback():
+    try:
+        data = request.get_json() if request.is_json else request.form
+        openid = data.get('openid')
+        feedback_type = data.get('type')
+        content = data.get('content')
+
+        if not all([openid, feedback_type, content]):
+            return jsonify({
+                'code': 400,
+                'message': '缺少必要参数',
+                'data': None
+            })
+
+        db = get_db()
+        with db.cursor() as cur:
+            # 获取用户ID
+            cur.execute("SELECT id FROM users WHERE openid = %s", (openid,))
+            user = cur.fetchone()
+            if not user:
+                return jsonify({
+                    'code': 404,
+                    'message': '用户不存在',
+                    'data': None
+                })
+
+            # 插入反馈记录
+            cur.execute("""
+                INSERT INTO feedback (user_id, type, content)
+                VALUES (%s, %s, %s)
+                RETURNING id
+            """, (user[0], feedback_type, content))
+            
+            feedback_id = cur.fetchone()[0]
+            db.commit()
+
+        return jsonify({
+            'code': 200,
+            'message': '提交成功',
+            'data': {'id': feedback_id}
+        })
+
+    except Exception as e:
+        logger.error(f"提交反馈失败: {str(e)}")
+        return jsonify({
+            'code': 500,
+            'message': '服务器错误',
+            'data': None
+        })
+
+# 获取反馈历史记录接口
+@app.route('/api/feedback/history', methods=['GET'])
+def get_feedback_history():
+    try:
+        openid = request.args.get('openid')
+        if not openid:
+            return jsonify({
+                'code': 400,
+                'message': '缺少openid参数',
+                'data': None
+            })
+
+        db = get_db()
+        with db.cursor(cursor_factory=DictCursor) as cur:
+            # 获取用户的反馈历史
+            cur.execute("""
+                SELECT f.id, f.type, f.content, f.status, f.reply,
+                       TO_CHAR(f.create_time, 'YYYY-MM-DD HH24:MI:SS') as create_time,
+                       TO_CHAR(f.reply_time, 'YYYY-MM-DD HH24:MI:SS') as reply_time
+                FROM feedback f
+                JOIN users u ON f.user_id = u.id
+                WHERE u.openid = %s
+                ORDER BY f.create_time DESC
+            """, (openid,))
+            
+            feedbacks = cur.fetchall()
+            result = []
+            for feedback in feedbacks:
+                result.append(dict(feedback))
+
+        return jsonify({
+            'code': 200,
+            'message': 'success',
+            'data': result
+        })
+
+    except Exception as e:
+        logger.error(f"获取反馈历史失败: {str(e)}")
+        return jsonify({
+            'code': 500,
+            'message': '服务器错误',
+            'data': None
+        })
 
 if __name__ == "__main__":
     app.run(host=host, port=port)
