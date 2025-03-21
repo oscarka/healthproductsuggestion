@@ -256,13 +256,6 @@ def api_upload():
         logger.debug(f"result类型: {type(result)}")
         logger.debug(f"result['output']类型: {type(result['output'])}")
         logger.debug(f"result['output']内容: {result['output']}")
-        
-        # 检查结果中是否包含 conclusion 字段
-        if 'output' in result and isinstance(result['output'], dict):
-            logger.debug(f"output字段的keys: {result['output'].keys()}")
-            logger.debug(f"conclusion存在于output中: {'conclusion' in result['output']}")
-            if 'conclusion' in result['output']:
-                logger.debug(f"conclusion内容: {result['output']['conclusion']}")
 
         # 构造返回数据
         response_data = {
@@ -273,7 +266,7 @@ def api_upload():
                 'output': result.get('output')
             }
         }
-        logger.debug(f"API响应数据完整结构: {json.dumps(response_data)}")
+        logger.debug(f"准备返回数据: {response_data}")
 
         # 在返回结果前保存记录
         if openid:
@@ -339,7 +332,7 @@ def init_db():
                 )
             """)
             
-            # 添加 health_records 表创建，包含 conclusion 字段
+            # 添加 health_records 表创建
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS health_records (
                     id SERIAL PRIMARY KEY,
@@ -349,7 +342,6 @@ def init_db():
                     raw_result JSONB,
                     service_elements JSONB,
                     service_examination JSONB,
-                    conclusion TEXT,
                     status SMALLINT,
                     error_message TEXT,
                     create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -435,28 +427,26 @@ def save_health_record(openid, content, result_data, query_type=1, error_message
             # 解析结果数据
             service_elements = None
             service_examination = None
-            conclusion = None
             if result_data and not error_message:
                 output = result_data.get('output', {})
                 service_elements = json.dumps(output.get('service_elements', []))
                 service_examination = json.dumps(output.get('service_examination', []))
-                conclusion = output.get('conclusion')
             
             # 在执行插入前打印参数
             logger.debug(f"准备插入记录: user_id={user[0]}, content={content}, type={query_type}")
             
-            # 插入记录，添加 conclusion 字段
+            # 插入记录
             cur.execute(
                 """
                 INSERT INTO health_records 
                 (user_id, query_content, query_type, raw_result, 
-                service_elements, service_examination, status, error_message, conclusion)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                service_elements, service_examination, status, error_message)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (user_id, content, query_type, 
                 json.dumps(result_data) if result_data else None,
                 service_elements, service_examination, 
-                status, error_message, conclusion)
+                status, error_message)
             )
             db.commit()
             
