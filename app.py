@@ -72,7 +72,7 @@ def process_with_coze(image_url=None, content=None):
     logger.debug(f"开始调用 Coze API，图片 URL: {image_url}, content: {content}")
     coze_url = 'https://api.coze.com/v1/workflow/run'
     headers = {
-        'Authorization': f"Bearer {os.environ.get('COZE_API_TOKEN', 'pat_lmm0o38mIw0OWee8wNOBjBSCWLDRviltMJOFishIqIuRkV5hB8xuzkxSLwrl65wb')}",
+        'Authorization': f"Bearer {os.environ.get('COZE_API_TOKEN', 'pat_gFslcJ4xKZrVNIASaPDC6BNvjMp7jeYCZm8QvlRyFi1eKWFVlY3dal5ZZkcovh8q')}",
         'Content-Type': 'application/json'
     }
     
